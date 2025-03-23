@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AuthScreen from '../screens/AuthScreen'; // Import AuthScreen
 import ApartmentsScreen from '../screens/ApartmentsScreen'; // Import ApartmentsScreen
 import ProfileScreen from '../screens/ProfileScreen'; // Import ProfileScreen
+import EditProfileScreen from '../screens/EditProfileScreen'; // Import EditProfileScreen
 import ApartmentDashboard from '../screens/ApartmentDashboard'; // Import ApartmentDashboard
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -79,6 +80,13 @@ export default function AppNavigator() {
             </Tab.Navigator>
           )}
         </Stack.Screen>
+
+        {/* Edit Profile Screen */}
+        <Stack.Screen
+          name="EditProfile"
+          component={EditProfileScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
