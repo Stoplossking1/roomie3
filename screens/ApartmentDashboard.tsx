@@ -1,9 +1,54 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Image, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { db } from '../components/firebase';
-import { collection, doc, query, onSnapshot, addDoc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
+import { collection, doc, query, onSnapshot, addDoc, updateDoc, getDoc } from "firebase/firestore";
+
+// SetCodeModal Component
+const SetCodeModal = ({ isVisible, onClose, apartmentId }) => {
+  const [code, setCode] = useState('');
+
+  const handleSetCode = async () => {
+    if (code.length !== 6 || isNaN(code)) {
+      alert("Please enter a valid 6-digit code.");
+      return;
+    }
+
+    try {
+      const apartmentRef = doc(db, "apartments", apartmentId);
+      await updateDoc(apartmentRef, { code: code });
+      alert("Code updated successfully!");
+      onClose();
+    } catch (error) {
+      alert("Error updating code: " + error.message);
+    }
+  };
+
+  return (
+    <Modal visible={isVisible} animationType="slide" transparent={true}>
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Set 6-Digit Code</Text>
+          <TextInput
+            placeholder="Enter 6-digit code"
+            value={code}
+            onChangeText={setCode}
+            keyboardType="numeric"
+            maxLength={6}
+            style={styles.input}
+          />
+          <TouchableOpacity style={styles.modalButton} onPress={handleSetCode}>
+            <Text style={styles.modalButtonText}>Set Code</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.modalCancelButton} onPress={onClose}>
+            <Text style={styles.modalButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 export default function ApartmentDashboard({ navigation, route }) {
   const { apartmentId } = route.params;
@@ -12,26 +57,11 @@ export default function ApartmentDashboard({ navigation, route }) {
   const [tasks, setTasks] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSetCodeModalVisible, setIsSetCodeModalVisible] = useState(false);
 
-  // Modals for adding chores/expenses
+  // Modals for adding chores and expenses
   const [isChoreModalVisible, setIsChoreModalVisible] = useState(false);
   const [isExpenseModalVisible, setIsExpenseModalVisible] = useState(false);
-  const [selectedChores, setSelectedChores] = useState([]);
-  const [selectedExpenses, setSelectedExpenses] = useState([]);
-  const [customChore, setCustomChore] = useState('');
-  const [customExpenseTitle, setCustomExpenseTitle] = useState('');
-  const [customExpenseAmount, setCustomExpenseAmount] = useState('');
-  
-  // New state for assignment modals
-  const [isAssignChoreModalVisible, setIsAssignChoreModalVisible] = useState(false);
-  const [isAssignExpenseModalVisible, setIsAssignExpenseModalVisible] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [selectedExpenseId, setSelectedExpenseId] = useState(null);
-  const [selectedMember, setSelectedMember] = useState(null);
-
-  // Example chores and expenses
-  const exampleChores = ["Clean Kitchen", "Take out Trash", "Vacuum Living Room", "Wash Dishes", "Mop Floors"];
-  const exampleExpenses = ["Groceries", "Internet Bill", "Electricity Bill", "Rent"];
 
   // Fetch apartment data, tasks, and expenses
   useEffect(() => {
@@ -54,6 +84,7 @@ export default function ApartmentDashboard({ navigation, route }) {
           name: data.name || "Unnamed Apartment",
           address: data.address || "No Address",
           members: memberDetails.filter(Boolean),
+          code: data.code || "No Code Set",
         });
       }
     });
@@ -76,102 +107,6 @@ export default function ApartmentDashboard({ navigation, route }) {
     };
   }, [apartmentId]);
 
-  // Add chores from modal
-  const handleAddChores = async () => {
-    try {
-      selectedChores.forEach(async (title) => {
-        await addDoc(collection(db, "apartments", apartmentId, "tasks"), {
-          title,
-          assignedTo: "",
-          dueDate: new Date().toISOString().split('T')[0],
-          completed: false,
-        });
-      });
-      if (customChore.trim()) {
-        await addDoc(collection(db, "apartments", apartmentId, "tasks"), {
-          title: customChore,
-          assignedTo: "",
-          dueDate: new Date().toISOString().split('T')[0],
-          completed: false,
-        });
-        setCustomChore("");
-      }
-      setSelectedChores([]);
-      setIsChoreModalVisible(false);
-      alert("Chores added successfully!");
-    } catch (error) {
-      alert("Error adding chores: " + error.message);
-    }
-  };
-
-  // Add expenses from modal
-  const handleAddExpenses = async () => {
-    try {
-      selectedExpenses.forEach(async (title) => {
-        const amount = prompt(`Enter amount for "${title}":`);
-        if (amount) {
-          await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
-            title,
-            amount: parseFloat(amount),
-            paidBy: "",
-            date: new Date().toISOString().split('T')[0],
-          });
-        }
-      });
-      if (customExpenseTitle.trim() && customExpenseAmount) {
-        await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
-          title: customExpenseTitle,
-          amount: parseFloat(customExpenseAmount),
-          paidBy: "",
-          date: new Date().toISOString().split('T')[0],
-        });
-        setCustomExpenseTitle("");
-        setCustomExpenseAmount("");
-      }
-      setSelectedExpenses([]);
-      setIsExpenseModalVisible(false);
-      alert("Expenses added successfully!");
-    } catch (error) {
-      alert("Error adding expenses: " + error.message);
-    }
-  };
-
-  // Assign chore to a member
-  const handleAssignChore = async () => {
-    if (!selectedMember) {
-      alert("Please select a member.");
-      return;
-    }
-    try {
-      await updateDoc(doc(db, "apartments", apartmentId, "tasks", selectedTaskId), {
-        assignedTo: selectedMember,
-      });
-      alert("Chore assigned successfully!");
-      setIsAssignChoreModalVisible(false);
-      setSelectedMember(null);
-    } catch (error) {
-      alert("Error assigning chore: " + error.message);
-    }
-  };
-
-  // Assign expense to a member
-  const handleAssignExpense = async () => {
-    if (!selectedMember) {
-      alert("Please select a member.");
-      return;
-    }
-    try {
-      await updateDoc(doc(db, "apartments", apartmentId, "expenses", selectedExpenseId), {
-        paidBy: selectedMember,
-      });
-      alert("Expense assigned successfully!");
-      setIsAssignExpenseModalVisible(false);
-      setSelectedMember(null);
-    } catch (error) {
-      alert("Error assigning expense: " + error.message);
-    }
-  };
-
   // Render a single chore
   const renderChore = ({ item }) => (
     <View style={styles.taskCard}>
@@ -184,13 +119,10 @@ export default function ApartmentDashboard({ navigation, route }) {
         </TouchableOpacity>
       </View>
       <View style={styles.taskDetails}>
-        <Text style={styles.assignedTo}>Assigned to: {item.assignedToName || "Unassigned"}</Text>
+        <Text style={styles.assignedTo}>Assigned to: {item.assignedTo || "Unassigned"}</Text>
         <TouchableOpacity 
           style={styles.assignButton} 
-          onPress={() => {
-            setSelectedTaskId(item.id);
-            setIsAssignChoreModalVisible(true);
-          }}
+          onPress={() => handleAssignChore(item.id)}
         >
           <Text style={styles.assignButtonText}>Assign Chore</Text>
         </TouchableOpacity>
@@ -205,10 +137,7 @@ export default function ApartmentDashboard({ navigation, route }) {
       <Text style={styles.expenseAmount}>${item.amount.toFixed(2)}</Text>
       <TouchableOpacity 
         style={styles.assignButton} 
-        onPress={() => {
-          setSelectedExpenseId(item.id);
-          setIsAssignExpenseModalVisible(true);
-        }}
+        onPress={() => handleAssignExpense(item.id)}
       >
         <Text style={styles.assignButtonText}>Assign Expense</Text>
       </TouchableOpacity>
@@ -226,6 +155,17 @@ export default function ApartmentDashboard({ navigation, route }) {
         <Text style={styles.title}>{apartmentData?.name}</Text>
         <TouchableOpacity style={styles.addButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Display Current Code */}
+      <View style={styles.codeContainer}>
+        <Text style={styles.codeText}>Current Code: {apartmentData?.code}</Text>
+        <TouchableOpacity 
+          style={styles.setCodeButton} 
+          onPress={() => setIsSetCodeModalVisible(true)}
+        >
+          <Text style={styles.setCodeButtonText}>Set Code</Text>
         </TouchableOpacity>
       </View>
 
@@ -278,43 +218,21 @@ export default function ApartmentDashboard({ navigation, route }) {
         />
       )}
 
+      {/* SetCodeModal */}
+      <SetCodeModal 
+        isVisible={isSetCodeModalVisible} 
+        onClose={() => setIsSetCodeModalVisible(false)} 
+        apartmentId={apartmentId}
+      />
+
       {/* Chore Modal */}
       <Modal visible={isChoreModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Chores</Text>
-            <FlatList
-              data={exampleChores}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.exampleItem}
-                  onPress={() => setSelectedChores(prev => 
-                    prev.includes(item) 
-                      ? prev.filter(c => c !== item) 
-                      : [...prev, item]
-                  )}
-                >
-                  <Text>{item}</Text>
-                  <MaterialCommunityIcons 
-                    name={selectedChores.includes(item) ? "checkbox-marked" : "checkbox-blank-outline"}
-                    size={24} 
-                    color="#007AFF"
-                  />
-                </TouchableOpacity>
-              )}
-              keyExtractor={(item) => item}
-            />
-            <TextInput
-              placeholder="Custom Chore"
-              value={customChore}
-              onChangeText={setCustomChore}
-              style={styles.input}
-            />
-            <TouchableOpacity style={styles.modalButton} onPress={handleAddChores}>
-              <Text style={styles.modalButtonText}>Add Chores</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setIsChoreModalVisible(false)}>
-              <Text style={styles.modalButtonText}>Cancel</Text>
+            <Text style={styles.modalTitle}>Add Chore</Text>
+            {/* Add your chore input fields here */}
+            <TouchableOpacity style={styles.modalButton} onPress={() => setIsChoreModalVisible(false)}>
+              <Text style={styles.modalButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -324,134 +242,10 @@ export default function ApartmentDashboard({ navigation, route }) {
       <Modal visible={isExpenseModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Expenses</Text>
-            <FlatList
-              data={exampleExpenses}
-              renderItem={({ item }) => (
-                <View style={styles.exampleExpenseContainer}>
-                  <Text>{item}</Text>
-                  <TextInput
-                    placeholder="Amount"
-                    keyboardType="numeric"
-                    onChangeText={(amount) => {
-                      setSelectedExpenses((prev) => 
-                        prev.map((exp) => exp.title === item ? { ...exp, amount } : exp)
-                      );
-                    }}
-                    style={styles.amountInput}
-                  />
-                  <MaterialCommunityIcons 
-                    name={selectedExpenses.some(exp => exp.title === item) ? "checkbox-marked" : "checkbox-blank-outline"}
-                    size={24} 
-                    color="#007AFF"
-                    onPress={() => {
-                      setSelectedExpenses((prev) => 
-                        prev.some(exp => exp.title === item)
-                          ? prev.filter(exp => exp.title !== item)
-                          : [...prev, { title: item, amount: 0 }]
-                      );
-                    }}
-                  />
-                </View>
-              )}
-              keyExtractor={(item) => item}
-            />
-            <TextInput
-              placeholder="Custom Expense Title"
-              value={customExpenseTitle}
-              onChangeText={setCustomExpenseTitle}
-              style={styles.input}
-            />
-            <TextInput
-              placeholder="Amount"
-              value={customExpenseAmount}
-              onChangeText={setCustomExpenseAmount}
-              keyboardType="numeric"
-              style={styles.input}
-            />
-            <TouchableOpacity style={styles.modalButton} onPress={handleAddExpenses}>
-              <Text style={styles.modalButtonText}>Add Expenses</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setIsExpenseModalVisible(false)}>
-              <Text style={styles.modalButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Assign Chore Modal */}
-      <Modal visible={isAssignChoreModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Assign Chore to Member</Text>
-            <FlatList
-              data={apartmentData.members}
-              renderItem={({ item: member }) => (
-                <TouchableOpacity 
-                  style={styles.memberItem}
-                  onPress={() => setSelectedMember(member.id)}
-                >
-                  <Text>{member.name}</Text>
-                  <MaterialCommunityIcons 
-                    name={selectedMember === member.id ? "radiobox-marked" : "radiobox-blank"}
-                    size={24} 
-                    color="#007AFF"
-                  />
-                </TouchableOpacity>
-              )}
-              keyExtractor={(member) => member.id}
-            />
-            <TouchableOpacity 
-              style={styles.modalButton} 
-              onPress={handleAssignChore}
-              disabled={!selectedMember}
-            >
-              <Text style={styles.modalButtonText}>Confirm Assignment</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.modalCancelButton} 
-              onPress={() => setIsAssignChoreModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Assign Expense Modal */}
-      <Modal visible={isAssignExpenseModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Assign Expense to Member</Text>
-            <FlatList
-              data={apartmentData.members}
-              renderItem={({ item: member }) => (
-                <TouchableOpacity 
-                  style={styles.memberItem}
-                  onPress={() => setSelectedMember(member.id)}
-                >
-                  <Text>{member.name}</Text>
-                  <MaterialCommunityIcons 
-                    name={selectedMember === member.id ? "radiobox-marked" : "radiobox-blank"}
-                    size={24} 
-                    color="#007AFF"
-                  />
-                </TouchableOpacity>
-              )}
-              keyExtractor={(member) => member.id}
-            />
-            <TouchableOpacity 
-              style={styles.modalButton} 
-              onPress={handleAssignExpense}
-              disabled={!selectedMember}
-            >
-              <Text style={styles.modalButtonText}>Confirm Assignment</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.modalCancelButton} 
-              onPress={() => setIsAssignExpenseModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>Cancel</Text>
+            <Text style={styles.modalTitle}>Add Expense</Text>
+            {/* Add your expense input fields here */}
+            <TouchableOpacity style={styles.modalButton} onPress={() => setIsExpenseModalVisible(false)}>
+              <Text style={styles.modalButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -476,6 +270,25 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  codeContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  codeText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  setCodeButton: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 5,
+    marginTop: 10,
+  },
+  setCodeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
   actionButtons: { 
     flexDirection: 'row', 
@@ -562,28 +375,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  exampleItem: { 
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    padding: 10,
-  },
-  exampleExpenseContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    padding: 10,
-  },
-  amountInput: {
-    width: 100,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    marginHorizontal: 10,
-  },
   input: { 
     width: '100%',
     height: 40,
@@ -592,13 +383,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: 10,
     marginVertical: 10,
-  },
-  memberItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    padding: 10,
   },
   modalButton: { 
     backgroundColor: '#007AFF',
