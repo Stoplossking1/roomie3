@@ -1,20 +1,21 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import ApartmentScreen from '../screens/ApartmentsScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import RoomDashboard from '../screens/RoomDashboard'; // Import RoomDashboard
+import AuthScreen from '../screens/AuthScreen'; // Import AuthScreen
+import ApartmentsScreen from '../screens/ApartmentsScreen'; // Import ApartmentsScreen
+import ProfileScreen from '../screens/ProfileScreen'; // Import ProfileScreen
+import ApartmentDashboard from '../screens/ApartmentDashboard'; // Import ApartmentDashboard
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
 
 // Create a stack navigator for the "Apartment" tab
 function ApartmentStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ApartmentScreen" component={ApartmentScreen} />
+      <Stack.Screen name="Apartments" component={ApartmentsScreen} />
       <Stack.Screen name="ApartmentDashboard" component={ApartmentDashboard} />
     </Stack.Navigator>
   );

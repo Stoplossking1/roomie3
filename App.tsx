@@ -1,31 +1,34 @@
-// App.tsx
 import React, { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Toaster } from 'sonner-native';
 import { auth } from './components/firebase'; // Adjust the path if needed
 import AppNavigator from './components/AppNavigator';
-import AuthScreen from './screens/AuthScreen';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [initialRoute, setInitialRoute] = useState<null | 'Main' | 'Auth'>(null);
 
   useEffect(() => {
     // Listen for authentication state changes
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
-        setIsAuthenticated(true); // User is signed in
+        setInitialRoute('Main'); // User is signed in, navigate to Main
       } else {
-        setIsAuthenticated(false); // User is signed out
+        setInitialRoute('Auth'); // User is signed out, navigate to Auth
       }
     });
 
     return () => unsubscribe(); // Cleanup subscription
   }, []);
 
+  // Wait until the initial route is determined
+  if (initialRoute === null) {
+    return null; // You can replace this with a loading spinner or splash screen
+  }
+
   return (
     <SafeAreaProvider>
       <Toaster />
-      {isAuthenticated ? <AppNavigator /> : <AuthScreen />}
+      <AppNavigator initialRoute={initialRoute} />
     </SafeAreaProvider>
   );
 }
