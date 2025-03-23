@@ -10,11 +10,11 @@ export default function ProfileScreen({ navigation, route }) {
   const [userProfile, setUserProfile] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [ratings, setRatings] = useState([]);
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [isMenuVisible, setIsMenuVisible] = useState(false); // Controls the visibility of the popup menu
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
   const [newRating, setNewRating] = useState(0);
   const [comment, setComment] = useState('');
-  const [hasRated, setHasRated] = useState(false); // Track if the user has already rated
+  const [hasRated, setHasRated] = useState(false);
 
   const profileUserId = route.params?.userId; // Get the profile user ID from route params
 
@@ -74,7 +74,7 @@ export default function ProfileScreen({ navigation, route }) {
     };
 
     fetchRooms();
-  }, [userProfile?.email]); // Run only when userProfile.email changes
+  }, [userProfile?.email]);
 
   // Fetch ratings for the user
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function ProfileScreen({ navigation, route }) {
       // Add the new rating to Firestore
       await addDoc(collection(db, "ratings"), {
         userId: profileUserId,
-        raterId: auth.currentUser.uid, // Store the ID of the user submitting the rating
+        raterId: auth.currentUser.uid,
         rating: newRating,
         comment: comment.trim(),
         createdAt: new Date(),
@@ -136,7 +136,7 @@ export default function ProfileScreen({ navigation, route }) {
       setNewRating(0);
       setComment('');
       setRatingModalVisible(false);
-      setHasRated(true); // Update state to indicate the user has rated
+      setHasRated(true);
       Alert.alert('Success', 'Your rating has been submitted.');
     } catch (error) {
       console.error('Submit rating error:', error.message);
@@ -153,6 +153,16 @@ export default function ProfileScreen({ navigation, route }) {
     } catch (error) {
       console.error('Delete rating error:', error.message);
       Alert.alert('Error', 'Failed to delete rating.');
+    }
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigation.replace('Auth');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to log out.');
     }
   };
 
@@ -187,7 +197,7 @@ export default function ProfileScreen({ navigation, route }) {
             renderItem={({ item }) => (
               <Text style={styles.roomItem}>{item.name}</Text>
             )}
-            scrollEnabled={false} // Disable internal scrolling
+            scrollEnabled={false}
           />
         </View>
 
@@ -213,7 +223,7 @@ export default function ProfileScreen({ navigation, route }) {
                 )}
               </View>
             )}
-            scrollEnabled={false} // Disable internal scrolling
+            scrollEnabled={false}
           />
         </View>
 
@@ -272,6 +282,44 @@ export default function ProfileScreen({ navigation, route }) {
               onPress={handleSubmitRating}
             >
               <Text style={styles.submitRatingText}>Submit Rating</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Popup Menu Modal */}
+      <Modal visible={isMenuVisible} transparent={true} animationType="fade">
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          onPress={() => setIsMenuVisible(false)} // Close the menu when tapping outside
+        >
+          <View style={styles.menuContainer}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+                navigation.navigate('EditProfile', { userId: profileUserId });
+              }}
+            >
+              <Text style={styles.menuText}>Edit Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+                navigation.navigate('Settings');
+              }}
+            >
+              <Text style={styles.menuText}>Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setIsMenuVisible(false);
+                handleLogout();
+              }}
+            >
+              <Text style={styles.menuText}>Logout</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -378,6 +426,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  menuContainer: {
+    width: '60%',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+  },
+  menuItem: {
+    paddingVertical: 10,
+  },
+  menuText: {
+    fontSize: 16,
+    color: '#007AFF',
   },
   ratingModalContainer: {
     width: '80%',
