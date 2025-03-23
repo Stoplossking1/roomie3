@@ -1,14 +1,8 @@
+// ProfileScreen.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import Footer from './Footer'; // Import the reusable Footer component
 
-export default function ProfileScreen({ navigation }) {
-  const handleFooterPress = (tab: string) => {
-    if (tab === 'apartment') {
-      navigation.navigate('Rooms'); // Matches the navigator name "Rooms"
-    }
-  };
-
+export default function ProfileScreen() {
   return (
     <View style={styles.container}>
       {/* Profile Header */}
@@ -33,9 +27,6 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.actionButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Footer */}
-      <Footer activeTab="profile" onTabPress={handleFooterPress} />
     </View>
   );
 }
