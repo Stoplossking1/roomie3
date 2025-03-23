@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, FlatList, Modal, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, FlatList, Modal, Alert, TextInput, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth, db } from '../components/firebase';
-import { onSnapshot, doc, collection, query, where, addDoc, getDocs } from "firebase/firestore";
+import { onSnapshot, doc, collection, query, where, addDoc, deleteDoc } from "firebase/firestore";
 import { signOut } from "firebase/auth";
 
-export default function ProfileScreen({ navigation }) {
+export default function ProfileScreen({ navigation, route }) {
   const [userProfile, setUserProfile] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [ratings, setRatings] = useState([]);
@@ -14,19 +14,51 @@ export default function ProfileScreen({ navigation }) {
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
   const [newRating, setNewRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [hasRated, setHasRated] = useState(false); // Track if the user has already rated
 
+  const profileUserId = route.params?.userId; // Get the profile user ID from route params
+
+  // Check if profileUserId is defined
+  if (!profileUserId) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.errorText}>User ID is missing. Please go back and try again.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Fetch user data
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const userRef = doc(db, "users", auth.currentUser.uid);
+        const userRef = doc(db, "users", profileUserId);
         const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
           if (docSnap.exists()) {
             setUserProfile(docSnap.data());
+          } else {
+            console.error("User profile not found");
           }
         });
 
+        return () => unsubscribeUser();
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
+    fetchUserData();
+  }, [profileUserId]);
+
+  // Fetch rooms for the user
+  useEffect(() => {
+    if (!userProfile?.email) {
+      return; // Wait until userProfile is populated
+    }
+
+    const fetchRooms = async () => {
+      try {
         const roomsRef = collection(db, "rooms");
-        const q = query(roomsRef, where("members", "array-contains", auth.currentUser.email));
+        const q = query(roomsRef, where("members", "array-contains", userProfile.email));
         const unsubscribeRooms = onSnapshot(q, (querySnapshot) => {
           const roomsData = [];
           querySnapshot.forEach((doc) => {
@@ -35,29 +67,31 @@ export default function ProfileScreen({ navigation }) {
           setRooms(roomsData);
         });
 
-        return () => {
-          unsubscribeUser();
-          unsubscribeRooms();
-        };
+        return () => unsubscribeRooms();
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error("Error fetching rooms:", error);
       }
     };
 
-    fetchUserData();
-  }, []);
+    fetchRooms();
+  }, [userProfile?.email]); // Run only when userProfile.email changes
 
+  // Fetch ratings for the user
   useEffect(() => {
     const fetchRatings = async () => {
       try {
         const ratingsRef = collection(db, "ratings");
-        const q = query(ratingsRef, where("userId", "==", auth.currentUser.uid));
+        const q = query(ratingsRef, where("userId", "==", profileUserId));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           const ratingsData = [];
           querySnapshot.forEach((doc) => {
             ratingsData.push({ id: doc.id, ...doc.data() });
           });
           setRatings(ratingsData);
+
+          // Check if the current user has already rated this profile
+          const currentUserRating = ratingsData.find((rating) => rating.raterId === auth.currentUser.uid);
+          setHasRated(!!currentUserRating);
         });
 
         return () => unsubscribe();
@@ -67,20 +101,9 @@ export default function ProfileScreen({ navigation }) {
     };
 
     fetchRatings();
-  }, []);
+  }, [profileUserId]);
 
-  const handleLogout = async () => {
-    try {
-      console.log('Signing out...');
-      await signOut(auth);
-      console.log('Signed out successfully');
-      navigation.replace('Auth'); // Navigate to the Auth screen
-    } catch (error) {
-      console.error('Logout error:', error.message);
-      Alert.alert('Error', 'Failed to log out.');
-    }
-  };
-
+  // Handle rating submission
   const handleSubmitRating = async () => {
     if (!comment.trim() || comment.split(' ').length < 5) {
       Alert.alert('Error', 'Please provide a valid comment with at least 5 words.');
@@ -88,16 +111,32 @@ export default function ProfileScreen({ navigation }) {
     }
 
     try {
+      // Prevent self-rating
+      if (auth.currentUser.uid === profileUserId) {
+        Alert.alert('Error', 'You cannot rate yourself.');
+        return;
+      }
+
+      // Prevent multiple ratings
+      if (hasRated) {
+        Alert.alert('Error', 'You have already rated this user.');
+        return;
+      }
+
+      // Add the new rating to Firestore
       await addDoc(collection(db, "ratings"), {
-        userId: auth.currentUser.uid,
+        userId: profileUserId,
+        raterId: auth.currentUser.uid, // Store the ID of the user submitting the rating
         rating: newRating,
         comment: comment.trim(),
         createdAt: new Date(),
       });
 
+      // Reset form and close modal
       setNewRating(0);
       setComment('');
       setRatingModalVisible(false);
+      setHasRated(true); // Update state to indicate the user has rated
       Alert.alert('Success', 'Your rating has been submitted.');
     } catch (error) {
       console.error('Submit rating error:', error.message);
@@ -105,8 +144,21 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  // Handle rating deletion
+  const handleDeleteRating = async (ratingId) => {
+    try {
+      const ratingRef = doc(db, "ratings", ratingId);
+      await deleteDoc(ratingRef);
+      Alert.alert('Success', 'Your rating has been deleted.');
+    } catch (error) {
+      console.error('Delete rating error:', error.message);
+      Alert.alert('Error', 'Failed to delete rating.');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Profile</Text>
         <TouchableOpacity onPress={() => setIsMenuVisible(true)}>
@@ -114,79 +166,82 @@ export default function ProfileScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.profileHeader}>
-        <Image
-          source={{ uri: userProfile?.avatar || 'https://api.a0.dev/assets/image?text=user%20profile%20picture&aspect=1:1' }}
-          style={styles.avatar}
-        />
-        <Text style={styles.profileName}>{userProfile?.name || 'Loading...'}</Text>
-        <Text style={styles.profileEmail}>{userProfile?.email || 'Loading...'}</Text>
-      </View>
+      {/* Scrollable Content */}
+      <ScrollView style={styles.scrollContainer}>
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
+          <Image
+            source={{ uri: userProfile?.avatar || 'https://api.a0.dev/assets/image?text=user%20profile%20picture&aspect=1:1' }}
+            style={styles.avatar}
+          />
+          <Text style={styles.profileName}>{userProfile?.name || 'Loading...'}</Text>
+          <Text style={styles.profileEmail}>{userProfile?.email || 'Loading...'}</Text>
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Rooms</Text>
-        <FlatList
-          data={rooms}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <Text style={styles.roomItem}>{item.name}</Text>
-          )}
-          contentContainerStyle={styles.roomsContainer}
-        />
-      </View>
+        {/* Rooms Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Rooms</Text>
+          <FlatList
+            data={rooms}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <Text style={styles.roomItem}>{item.name}</Text>
+            )}
+            scrollEnabled={false} // Disable internal scrolling
+          />
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ratings</Text>
-        <FlatList
-          data={ratings}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <View style={styles.ratingItem}>
-              <Text style={styles.ratingText}>
-                {Array(item.rating).fill('★').join('')} ({item.rating}/5)
-              </Text>
-              <Text style={styles.commentText}>{item.comment}</Text>
-            </View>
-          )}
-          contentContainerStyle={styles.ratingsContainer}
-        />
-      </View>
+        {/* Ratings Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Ratings</Text>
+          <FlatList
+            data={ratings}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.ratingItem}>
+                <Text style={styles.ratingText}>
+                  {Array(item.rating).fill('★').join('')} ({item.rating}/5)
+                </Text>
+                <Text style={styles.commentText}>{item.comment}</Text>
+                {item.raterId === auth.currentUser.uid && (
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeleteRating(item.id)}
+                  >
+                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            scrollEnabled={false} // Disable internal scrolling
+          />
+        </View>
 
-      <TouchableOpacity
-        style={styles.rateButton}
-        onPress={() => setRatingModalVisible(true)}
-      >
-        <Text style={styles.rateButtonText}>Rate This User</Text>
-      </TouchableOpacity>
-
-      <Modal visible={isMenuVisible} transparent={true} animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} onPress={() => setIsMenuVisible(false)}>
-          <View style={styles.menuContainer}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setIsMenuVisible(false);
-                navigation.navigate('EditProfile');
-              }}
-            >
-              <Text style={styles.menuText}>Edit Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setIsMenuVisible(false);
-                navigation.navigate('Settings');
-              }}
-            >
-              <Text style={styles.menuText}>Settings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-              <Text style={styles.menuText}>Logout</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Rate User Button */}
+        <TouchableOpacity
+          style={[styles.rateButton, (hasRated || auth.currentUser.uid === profileUserId) && styles.disabledButton]}
+          onPress={() => {
+            if (auth.currentUser.uid === profileUserId) {
+              Alert.alert('Error', 'You cannot rate yourself.');
+            } else if (hasRated) {
+              Alert.alert('Error', 'You have already rated this user.');
+            } else {
+              setRatingModalVisible(true);
+            }
+          }}
+          disabled={hasRated || auth.currentUser.uid === profileUserId}
+        >
+          <Text style={styles.rateButtonText}>
+            {auth.currentUser.uid === profileUserId
+              ? 'You cannot rate yourself'
+              : hasRated
+              ? 'Already Rated'
+              : 'Rate This User'}
+          </Text>
         </TouchableOpacity>
-      </Modal>
+      </ScrollView>
 
+      {/* Rating Modal */}
       <Modal visible={ratingModalVisible} transparent={true} animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} onPress={() => setRatingModalVisible(false)}>
           <View style={styles.ratingModalContainer}>
@@ -241,6 +296,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+  scrollContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
   profileHeader: {
     alignItems: 'center',
     marginBottom: 20,
@@ -267,22 +326,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginLeft: 20,
     marginBottom: 10,
-  },
-  roomsContainer: {
-    paddingHorizontal: 20,
   },
   roomItem: {
     fontSize: 16,
     color: '#333',
     marginBottom: 5,
   },
-  ratingsContainer: {
-    paddingHorizontal: 20,
-  },
   ratingItem: {
     marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   ratingText: {
     fontSize: 16,
@@ -293,12 +348,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  deleteButton: {
+    backgroundColor: '#FF3B30',
+    padding: 5,
+    borderRadius: 5,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   rateButton: {
     backgroundColor: '#007AFF',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
     marginHorizontal: 20,
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
   },
   rateButtonText: {
     color: '#fff',
@@ -310,19 +378,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  menuContainer: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-  },
-  menuItem: {
-    paddingVertical: 10,
-  },
-  menuText: {
-    fontSize: 16,
-    color: '#007AFF',
   },
   ratingModalContainer: {
     width: '80%',
@@ -360,5 +415,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  errorText: {
+    fontSize: 16,
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 20,
   },
 });
