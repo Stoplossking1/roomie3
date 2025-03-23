@@ -190,7 +190,7 @@ export default function ProfileScreen({ navigation, route }) {
 
         {/* Rooms Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rooms</Text>
+          <Text style={styles.sectionTitle}>Apartments</Text>
           <FlatList
             data={rooms}
             keyExtractor={(item) => item.id}

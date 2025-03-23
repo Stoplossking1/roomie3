@@ -38,37 +38,45 @@ export default function ApartmentDashboard({ navigation, route }) {
     const apartmentRef = doc(db, "apartments", apartmentId);
     const tasksQuery = query(collection(apartmentRef, "tasks"));
     const expensesQuery = query(collection(apartmentRef, "expenses"));
-
-    const unsubscribeApartment = onSnapshot(apartmentRef, async (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
+  
+    const unsubscribeApartment = onSnapshot(apartmentRef, async (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
         const members = Array.isArray(data.members) ? data.members : [];
-        const memberDetails = await Promise.all(
-          members.map(async (memberId) => {
-            const userSnapshot = await getDoc(doc(db, "users", memberId));
-            return userSnapshot.exists() ? { id: memberId, ...userSnapshot.data() } : null;
-          })
-        );
-        setApartmentData({
-          id: doc.id,
-          name: data.name || "Unnamed Apartment",
-          address: data.address || "No Address",
-          members: memberDetails.filter(Boolean),
-        });
+        try {
+          const memberDetails = await Promise.all(
+            members.map(async (memberId) => {
+              const userSnapshot = await getDoc(doc(db, "users", memberId));
+              return userSnapshot.exists() ? { id: memberId, ...userSnapshot.data() } : null;
+            })
+          );
+          setApartmentData({
+            id: docSnap.id,
+            name: data.name || "Unnamed Apartment",
+            address: data.address || "No Address",
+            members: memberDetails.filter(Boolean),
+          });
+        } catch (error) {
+          console.error("Error fetching member details:", error);
+          setApartmentData(null); // Set to null if there's an error
+        }
+      } else {
+        console.error("Apartment document does not exist.");
+        setApartmentData(null); // Set to null if the document doesn't exist
       }
     });
-
+  
     const unsubscribeTasks = onSnapshot(tasksQuery, (querySnapshot) => {
       const tasksData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setTasks(tasksData);
     });
-
+  
     const unsubscribeExpenses = onSnapshot(expensesQuery, (querySnapshot) => {
       const expensesData = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setExpenses(expensesData);
       setLoading(false);
     });
-
+  
     return () => {
       unsubscribeApartment();
       unsubscribeTasks();

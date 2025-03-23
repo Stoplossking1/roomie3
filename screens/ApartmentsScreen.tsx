@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { db } from '../components/firebase'; // Import Firestore
-import { collection, query, onSnapshot, addDoc } from "firebase/firestore"; // Firestore methods
+import { db, auth } from '../components/firebase'; // Import Firestore and Firebase Auth
+import { collection, query, onSnapshot, addDoc, updateDoc, doc, where } from "firebase/firestore"; // Firestore methods
 
 export default function ApartmentsScreen({ navigation }) {
   const [apartments, setApartments] = useState([]); // State to hold apartments
@@ -14,7 +14,17 @@ export default function ApartmentsScreen({ navigation }) {
 
   // Fetch apartments from Firestore
   useEffect(() => {
-    const q = query(collection(db, "apartments")); // Query the "apartments" collection
+    const currentUser = auth.currentUser; // Get the current user
+    if (!currentUser) {
+      console.error("No user is currently logged in.");
+      return;
+    }
+
+    const q = query(
+      collection(db, "apartments"),
+      where("members", "array-contains", currentUser.uid) // Filter apartments by current user's ID
+    );
+
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const apartmentsData = [];
       querySnapshot.forEach((doc) => {
@@ -29,23 +39,40 @@ export default function ApartmentsScreen({ navigation }) {
 
   // Function to handle apartment creation
   const handleCreateApartment = async () => {
+    const currentUser = auth.currentUser; // Get the current user
+    if (!currentUser) {
+      alert("You must be logged in to create an apartment.");
+      return;
+    }
+
     if (!apartmentName || !apartmentAddress) {
       alert("Please enter both the apartment name and address.");
       return;
     }
 
     try {
-      await addDoc(collection(db, "apartments"), {
+      // Step 1: Create the apartment document in Firestore
+      const apartmentRef = await addDoc(collection(db, "apartments"), {
         name: apartmentName,
         address: apartmentAddress,
-        members: 1, // Default number of members
+        members: [currentUser.uid], // Initialize members as an array with the current user's ID
       });
-      console.log(`Apartment "${apartmentName}" created successfully`);
+
+      // Step 2: Retrieve the unique ID of the newly created apartment
+      const apartmentId = apartmentRef.id;
+
+      // Step 3: Update the apartment document to include the apartmentId field
+      await updateDoc(doc(db, "apartments", apartmentId), {
+        apartmentId: apartmentId,
+      });
+
+      console.log(`Apartment "${apartmentName}" created successfully with ID: ${apartmentId}`);
       setApartmentName('');
       setApartmentAddress('');
       setIsModalVisible(false);
     } catch (error) {
       console.error("Error creating apartment:", error);
+      alert("Failed to create apartment. Please try again.");
     }
   };
 
@@ -59,7 +86,7 @@ export default function ApartmentsScreen({ navigation }) {
       <View style={styles.apartmentInfo}>
         <Text style={styles.apartmentName}>{item.name}</Text>
         <Text style={styles.addressText}>{item.address}</Text>
-        <Text style={styles.membersText}>{item.members} members</Text>
+        <Text style={styles.membersText}>{item.members.length} members</Text>
       </View>
       <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
     </TouchableOpacity>
