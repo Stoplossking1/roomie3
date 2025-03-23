@@ -1,31 +1,89 @@
-// AuthScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from '../components/firebase'; // Adjust the path if needed
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth"; // Import Firebase auth functions
+import { auth, db } from '../components/firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, getDocs, query, where, collection } from "firebase/firestore";
 
 export default function AuthScreen({ navigation }) {
-  const [isLogin, setIsLogin] = useState(true); // Toggle between login and register modes
-  const [email, setEmail] = useState(''); // Email input state
-  const [password, setPassword] = useState(''); // Password input state
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [gender, setGender] = useState('male');
 
-  // Handle authentication (login or register)
+  const isEmailUnique = async (email) => {
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", email));
+      const querySnapshot = await getDocs(q);
+
+      return querySnapshot.empty;
+    } catch (error) {
+      console.error("Error checking email uniqueness:", error);
+      return false;
+    }
+  };
+
+  const isPasswordStrong = (password) => {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return passwordRegex.test(password);
+  };
+
   const handleAuth = async () => {
     try {
+      if (!navigation) {
+        console.error('Navigation object is undefined');
+        return;
+      }
+
       if (isLogin) {
-        // Login with email and password
         await signInWithEmailAndPassword(auth, email, password);
         console.log('User logged in successfully');
-        navigation.replace('Main'); // Navigate to the main app (replace current screen)
+        navigation.replace('Main'); // Navigate to the main app
       } else {
-        // Register with email and password
-        await createUserWithEmailAndPassword(auth, email, password);
+        if (!name || !email || !password || !confirmPassword) {
+          Alert.alert('Error', 'Please fill in all fields.');
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          Alert.alert('Error', 'Passwords do not match.');
+          return;
+        }
+
+        if (!isPasswordStrong(password)) {
+          Alert.alert(
+            'Weak Password',
+            'Password must be at least 8 characters long and include uppercase, lowercase, numbers, and special characters.'
+          );
+          return;
+        }
+
+        const isUnique = await isEmailUnique(email);
+        if (!isUnique) {
+          Alert.alert('Error', 'This email is already registered.');
+          return;
+        }
+
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        await setDoc(doc(db, "users", user.uid), {
+          name: name,
+          email: email,
+          gender: gender,
+          avatar: gender === 'male'
+            ? 'https://api.a0.dev/assets/image?text=male%20profile%20picture&aspect=1:1'
+            : 'https://api.a0.dev/assets/image?text=female%20profile%20picture&aspect=1:1',
+        });
+
         console.log('User registered successfully');
-        navigation.replace('Main'); // Navigate to the main app (replace current screen)
+        navigation.replace('Main'); // Navigate to the main app
       }
     } catch (error) {
-      // Handle errors (e.g., invalid email, weak password, etc.)
+      console.error('Authentication error:', error.message);
       Alert.alert('Error', error.message);
     }
   };
@@ -33,19 +91,20 @@ export default function AuthScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* App Logo */}
-        <Image
-          source={{ uri: 'https://api.a0.dev/assets/image?text=roommate%20management%20app%20modern%20logo&aspect=1:1' }}
-          style={styles.logo}
-        />
-
-        {/* Title and Subtitle */}
-        <Text style={styles.title}>RoomMate Manager</Text>
+        <Image source={require('../assets/logo.png')} style={styles.logo} />
         <Text style={styles.subtitle}>
           {isLogin ? 'Welcome back!' : 'Create your account'}
         </Text>
 
-        {/* Email Input */}
+        {!isLogin && (
+          <TextInput
+            style={styles.input}
+            placeholder="Name"
+            value={name}
+            onChangeText={setName}
+          />
+        )}
+
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -55,7 +114,6 @@ export default function AuthScreen({ navigation }) {
           autoCapitalize="none"
         />
 
-        {/* Password Input */}
         <TextInput
           style={styles.input}
           placeholder="Password"
@@ -64,15 +122,44 @@ export default function AuthScreen({ navigation }) {
           secureTextEntry
         />
 
-        {/* Login/Register Button */}
+        {!isLogin && (
+          <TextInput
+            style={styles.input}
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+          />
+        )}
+
+        {!isLogin && (
+          <View style={styles.genderContainer}>
+            <TouchableOpacity
+              style={[styles.genderButton, gender === 'male' && styles.activeGenderButton]}
+              onPress={() => setGender('male')}
+            >
+              <Text style={[styles.genderButtonText, gender === 'male' && styles.activeGenderButtonText]}>
+                Male
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.genderButton, gender === 'female' && styles.activeGenderButton]}
+              onPress={() => setGender('female')}
+            >
+              <Text style={[styles.genderButtonText, gender === 'female' && styles.activeGenderButtonText]}>
+                Female
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <TouchableOpacity style={styles.button} onPress={handleAuth}>
           <Text style={styles.buttonText}>
             {isLogin ? 'Login' : 'Register'}
           </Text>
         </TouchableOpacity>
 
-        {/* Switch Between Login and Register */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.switchButton}
           onPress={() => setIsLogin(!isLogin)}
         >
@@ -100,13 +187,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     marginBottom: 20,
-    borderRadius: 60,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
   },
   subtitle: {
     fontSize: 16,
@@ -143,5 +223,32 @@ const styles = StyleSheet.create({
   switchText: {
     color: '#007AFF',
     fontSize: 14,
+  },
+  genderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 15,
+  },
+  genderButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  activeGenderButton: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  genderButtonText: {
+    color: '#666',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  activeGenderButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
 });
