@@ -62,6 +62,15 @@ export default function ApartmentDashboard({ navigation, route }) {
   // Modals for adding chores and expenses
   const [isChoreModalVisible, setIsChoreModalVisible] = useState(false);
   const [isExpenseModalVisible, setIsExpenseModalVisible] = useState(false);
+  const [selectedChores, setSelectedChores] = useState([]);
+  const [selectedExpenses, setSelectedExpenses] = useState([]);
+  const [customChore, setCustomChore] = useState('');
+  const [customExpenseTitle, setCustomExpenseTitle] = useState('');
+  const [customExpenseAmount, setCustomExpenseAmount] = useState('');
+
+  // Example chores and expenses
+  const exampleChores = ["Clean Kitchen", "Take out Trash", "Vacuum Living Room", "Wash Dishes", "Mop Floors"];
+  const exampleExpenses = ["Groceries", "Internet Bill", "Electricity Bill", "Rent"];
 
   // Fetch apartment data, tasks, and expenses
   useEffect(() => {
@@ -106,6 +115,97 @@ export default function ApartmentDashboard({ navigation, route }) {
       unsubscribeExpenses();
     };
   }, [apartmentId]);
+
+  // Add chores from modal
+  const handleAddChores = async () => {
+    try {
+      selectedChores.forEach(async (title) => {
+        await addDoc(collection(db, "apartments", apartmentId, "tasks"), {
+          title,
+          assignedTo: "",
+          dueDate: new Date().toISOString().split('T')[0],
+          completed: false,
+        });
+      });
+      if (customChore.trim()) {
+        await addDoc(collection(db, "apartments", apartmentId, "tasks"), {
+          title: customChore,
+          assignedTo: "",
+          dueDate: new Date().toISOString().split('T')[0],
+          completed: false,
+        });
+        setCustomChore("");
+      }
+      setSelectedChores([]);
+      setIsChoreModalVisible(false);
+      alert("Chores added successfully!");
+    } catch (error) {
+      alert("Error adding chores: " + error.message);
+    }
+  };
+
+  // Add expenses from modal
+  const handleAddExpenses = async () => {
+    try {
+      selectedExpenses.forEach(async (title) => {
+        await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
+          title,
+          amount: 0,
+          paidBy: "",
+          date: new Date().toISOString().split('T')[0],
+        });
+      });
+      if (customExpenseTitle.trim() && customExpenseAmount) {
+        await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
+          title: customExpenseTitle,
+          amount: parseFloat(customExpenseAmount),
+          paidBy: "",
+          date: new Date().toISOString().split('T')[0],
+        });
+        setCustomExpenseTitle("");
+        setCustomExpenseAmount("");
+      }
+      setSelectedExpenses([]);
+      setIsExpenseModalVisible(false);
+      alert("Expenses added successfully!");
+    } catch (error) {
+      alert("Error adding expenses: " + error.message);
+    }
+  };
+
+  // Assign chore to a member
+  const handleAssignChore = async (taskId) => {
+    const selectedMember = prompt("Enter member ID to assign:");
+    if (!selectedMember || !apartmentData?.members.some(m => m.id === selectedMember)) {
+      alert("Invalid member ID");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "apartments", apartmentId, "tasks", taskId), {
+        assignedTo: selectedMember,
+      });
+      alert("Chore assigned successfully!");
+    } catch (error) {
+      alert("Error assigning chore: " + error.message);
+    }
+  };
+
+  // Assign expense to a member
+  const handleAssignExpense = async (expenseId) => {
+    const selectedMember = prompt("Enter member ID to assign:");
+    if (!selectedMember || !apartmentData?.members.some(m => m.id === selectedMember)) {
+      alert("Invalid member ID");
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "apartments", apartmentId, "expenses", expenseId), {
+        paidBy: selectedMember,
+      });
+      alert("Expense assigned successfully!");
+    } catch (error) {
+      alert("Error assigning expense: " + error.message);
+    }
+  };
 
   // Render a single chore
   const renderChore = ({ item }) => (
@@ -229,10 +329,39 @@ export default function ApartmentDashboard({ navigation, route }) {
       <Modal visible={isChoreModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Chore</Text>
-            {/* Add your chore input fields here */}
-            <TouchableOpacity style={styles.modalButton} onPress={() => setIsChoreModalVisible(false)}>
-              <Text style={styles.modalButtonText}>Close</Text>
+            <Text style={styles.modalTitle}>Add Chores</Text>
+            <FlatList
+              data={exampleChores}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.exampleItem}
+                  onPress={() => setSelectedChores(prev => 
+                    prev.includes(item) 
+                      ? prev.filter(c => c !== item) 
+                      : [...prev, item]
+                  )}
+                >
+                  <Text>{item}</Text>
+                  <MaterialCommunityIcons 
+                    name={selectedChores.includes(item) ? "checkbox-marked" : "checkbox-blank-outline"}
+                    size={24} 
+                    color="#007AFF"
+                  />
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item}
+            />
+            <TextInput
+              placeholder="Custom Chore"
+              value={customChore}
+              onChangeText={setCustomChore}
+              style={styles.input}
+            />
+            <TouchableOpacity style={styles.modalButton} onPress={handleAddChores}>
+              <Text style={styles.modalButtonText}>Add Chores</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setIsChoreModalVisible(false)}>
+              <Text style={styles.modalButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -242,10 +371,46 @@ export default function ApartmentDashboard({ navigation, route }) {
       <Modal visible={isExpenseModalVisible} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Expense</Text>
-            {/* Add your expense input fields here */}
-            <TouchableOpacity style={styles.modalButton} onPress={() => setIsExpenseModalVisible(false)}>
-              <Text style={styles.modalButtonText}>Close</Text>
+            <Text style={styles.modalTitle}>Add Expenses</Text>
+            <FlatList
+              data={exampleExpenses}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.exampleItem}
+                  onPress={() => setSelectedExpenses(prev => 
+                    prev.includes(item) 
+                      ? prev.filter(e => e !== item) 
+                      : [...prev, item]
+                  )}
+                >
+                  <Text>{item}</Text>
+                  <MaterialCommunityIcons 
+                    name={selectedExpenses.includes(item) ? "checkbox-marked" : "checkbox-blank-outline"}
+                    size={24} 
+                    color="#007AFF"
+                  />
+                </TouchableOpacity>
+              )}
+              keyExtractor={(item) => item}
+            />
+            <TextInput
+              placeholder="Custom Expense Title"
+              value={customExpenseTitle}
+              onChangeText={setCustomExpenseTitle}
+              style={styles.input}
+            />
+            <TextInput
+              placeholder="Amount"
+              value={customExpenseAmount}
+              onChangeText={setCustomExpenseAmount}
+              keyboardType="numeric"
+              style={styles.input}
+            />
+            <TouchableOpacity style={styles.modalButton} onPress={handleAddExpenses}>
+              <Text style={styles.modalButtonText}>Add Expenses</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelButton} onPress={() => setIsExpenseModalVisible(false)}>
+              <Text style={styles.modalButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -256,62 +421,62 @@ export default function ApartmentDashboard({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: 20 
+  header: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: 20
   },
   title: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-  addButton: { 
-    backgroundColor: '#007AFF',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+  addButton: {
+  backgroundColor: '#007AFF',
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  alignItems: 'center',
+  justifyContent: 'center',
   },
   codeContainer: {
-    padding: 20,
-    alignItems: 'center',
+  padding: 20,
+  alignItems: 'center',
   },
   codeText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+  fontSize: 18,
+  fontWeight: 'bold',
+  color: '#333',
   },
   setCodeButton: {
-    backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 10,
+  backgroundColor: '#007AFF',
+  padding: 10,
+  borderRadius: 5,
+  marginTop: 10,
   },
   setCodeButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+  color: 'white',
+  fontWeight: 'bold',
   },
-  actionButtons: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-around', 
-    marginVertical: 20 
+  actionButtons: {
+  flexDirection: 'row',
+  justifyContent: 'space-around',
+  marginVertical: 20
   },
-  actionButton: { 
-    backgroundColor: '#007AFF',
-    padding: 10,
-    borderRadius: 10,
+  actionButton: {
+  backgroundColor: '#007AFF',
+  padding: 10,
+  borderRadius: 10,
   },
   actionButtonText: { color: 'white', fontWeight: 'bold' },
-  tabBar: { 
-    flexDirection: 'row', 
-    paddingHorizontal: 20, 
-    marginTop: 20 
+  tabBar: {
+  flexDirection: 'row',
+  paddingHorizontal: 20,
+  marginTop: 20
   },
-  tab: { 
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: '#ddd',
+  tab: {
+  flex: 1,
+  paddingVertical: 10,
+  alignItems: 'center',
+  borderBottomWidth: 2,
+  borderBottomColor: '#ddd',
   },
   activeTab: { borderBottomColor: '#007AFF' },
   listContainer: { padding: 20 },
@@ -325,31 +490,51 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     elevation: 2,
   },
-  taskHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 10 
+  taskHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  taskTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
-  statusBadge: { 
+  taskTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
-  completedBadge: { backgroundColor: '#E8F5E9' },
-  pendingBadge: { backgroundColor: '#FFF3E0' },
-  statusText: { fontSize: 12, fontWeight: '500' },
-  taskDetails: { flexDirection: 'row', justifyContent: 'space-between' },
-  assignedTo: { color: '#666', fontSize: 14 },
-  assignButton: { 
+  completedBadge: {
+    backgroundColor: '#E8F5E9',
+  },
+  pendingBadge: {
+    backgroundColor: '#FFF3E0',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  taskDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  assignedTo: {
+    color: '#666',
+    fontSize: 14,
+  },
+  assignButton: {
     backgroundColor: '#FF9500',
     padding: 5,
     borderRadius: 5,
     marginLeft: 10,
   },
-  assignButtonText: { color: 'white', fontWeight: 'bold' },
-  expenseCard: { 
+  assignButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  expenseCard: {
     backgroundColor: 'white',
     borderRadius: 10,
     padding: 15,
@@ -359,23 +544,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     elevation: 2,
   },
-  expenseTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
-  expenseAmount: { fontSize: 14, color: '#666' },
-  modalContainer: { 
+  expenseTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  expenseAmount: {
+    fontSize: 14,
+    color: '#666',
+  },
+  modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  modalContent: { 
+  modalContent: {
     width: '80%',
     backgroundColor: 'white',
     borderRadius: 10,
     padding: 20,
     alignItems: 'center',
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  input: { 
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
+  input: {
     width: '100%',
     height: 40,
     borderWidth: 1,
@@ -384,7 +580,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginVertical: 10,
   },
-  modalButton: { 
+  modalButton: {
     backgroundColor: '#007AFF',
     width: '100%',
     padding: 10,
@@ -392,12 +588,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 10,
   },
-  modalCancelButton: { 
+  modalCancelButton: {
     backgroundColor: '#666',
     width: '100%',
     padding: 10,
     borderRadius: 5,
     alignItems: 'center',
   },
-  modalButtonText: { color: 'white', fontWeight: 'bold' },
+  modalButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });
