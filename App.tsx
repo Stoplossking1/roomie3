@@ -6,6 +6,7 @@ import { Toaster } from 'sonner-native';
 import AuthScreen from "./screens/AuthScreen"
 import RoomsScreen from "./screens/RoomsScreen"
 import RoomDashboard from "./screens/RoomDashboard"
+import ProfileScreen from "./screens/ProfileScreen"
 
 const Stack = createNativeStackNavigator();
 
@@ -16,6 +17,7 @@ function RootStack() {
       <Stack.Screen name="Auth" component={AuthScreen} />
       <Stack.Screen name="Rooms" component={RoomsScreen} />
       <Stack.Screen name="RoomDashboard" component={RoomDashboard} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }

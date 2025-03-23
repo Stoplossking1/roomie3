@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { db } from './firebase'; // Import Firestore
 import { collection, query, onSnapshot, addDoc } from "firebase/firestore"; // Firestore methods
+import Footer from './Footer'; // Import the reusable Footer component
 
 export default function RoomsScreen({ navigation }) {
   const [rooms, setRooms] = useState([]); // State to hold rooms
@@ -40,6 +41,13 @@ export default function RoomsScreen({ navigation }) {
     }
   };
 
+  // Handle footer tab press
+  const handleFooterPress = (tab: string) => {
+    if (tab === 'profile') {
+      navigation.navigate('Profile'); // Matches the navigator name "Profile"
+    }
+  };
+
   // Render a single room
   const renderRoom = ({ item }) => (
     <TouchableOpacity 
@@ -65,6 +73,7 @@ export default function RoomsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Your Rooms</Text>
         <TouchableOpacity 
@@ -76,12 +85,16 @@ export default function RoomsScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* Room List */}
       <FlatList
         data={rooms}
         renderItem={renderRoom}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
       />
+
+      {/* Footer */}
+      <Footer activeTab="apartment" onTabPress={handleFooterPress} />
     </SafeAreaView>
   );
 }
