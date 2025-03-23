@@ -1,14 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-
-const mockRooms = [
-  { id: '1', name: 'Downtown Apartment', members: 3 },
-  { id: '2', name: 'Student House', members: 4 },
-];
+import { db } from './firebase'; // Import Firestore
+import { collection, query, onSnapshot, addDoc } from "firebase/firestore"; // Firestore methods
 
 export default function RoomsScreen({ navigation }) {
+  const [rooms, setRooms] = useState([]); // State to hold rooms
+  const [loading, setLoading] = useState(true); // Loading state for Firestore fetch
+
+  // Fetch rooms from Firestore
+  useEffect(() => {
+    const q = query(collection(db, "rooms")); // Query the "rooms" collection
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const roomsData = [];
+      querySnapshot.forEach((doc) => {
+        roomsData.push({ id: doc.id, ...doc.data() }); // Add room data to array
+      });
+      setRooms(roomsData); // Update state with fetched rooms
+      setLoading(false); // Stop loading
+    });
+
+    return () => unsubscribe(); // Unsubscribe from listener on unmount
+  }, []);
+
+  // Function to create a new room
+  const handleCreateRoom = async () => {
+    try {
+      const roomName = prompt("Enter room name:");
+      if (roomName) {
+        await addDoc(collection(db, "rooms"), {
+          name: roomName,
+          members: 1, // Default number of members
+        });
+        alert("Room created successfully!");
+      }
+    } catch (error) {
+      alert("Error creating room: " + error.message);
+    }
+  };
+
+  // Render a single room
   const renderRoom = ({ item }) => (
     <TouchableOpacity 
       style={styles.roomCard}
@@ -23,13 +55,21 @@ export default function RoomsScreen({ navigation }) {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Your Rooms</Text>
         <TouchableOpacity 
           style={styles.createButton}
-          onPress={() => navigation.navigate('CreateRoom')}
+          onPress={handleCreateRoom}
         >
           <MaterialCommunityIcons name="plus" size={24} color="white" />
           <Text style={styles.createButtonText}>Create Room</Text>
@@ -37,9 +77,9 @@ export default function RoomsScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={mockRooms}
+        data={rooms}
         renderItem={renderRoom}
-        keyExtractor={item => item.id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
       />
     </SafeAreaView>
@@ -103,5 +143,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

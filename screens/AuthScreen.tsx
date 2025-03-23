@@ -1,19 +1,28 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from './firebase'; // Adjust the path if needed
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth"; // Import Firebase auth functions
 
 export default function AuthScreen({ navigation }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
 
-  const handleAuth = () => {
-    // TODO: Implement actual authentication
-    if (isLogin) {
-      navigation.navigate('Rooms');
-    } else {
-      navigation.navigate('Rooms');
+  const handleAuth = async () => {
+    try {
+      if (isLogin) {
+        // Login with email and password
+        await signInWithEmailAndPassword(auth, email, password);
+        navigation.navigate('Rooms');
+      } else {
+        // Register with email and password
+        await createUserWithEmailAndPassword(auth, email, password);
+        navigation.navigate('Rooms');
+      }
+    } catch (error) {
+      // Handle errors (e.g., invalid email, weak password, etc.)
+      Alert.alert('Error', error.message);
     }
   };
 
@@ -29,15 +38,6 @@ export default function AuthScreen({ navigation }) {
           {isLogin ? 'Welcome back!' : 'Create your account'}
         </Text>
 
-        {!isLogin && (
-          <TextInput
-            style={styles.input}
-            placeholder="Username"
-            value={username}
-            onChangeText={setUsername}
-          />
-        )}
-        
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -46,7 +46,7 @@ export default function AuthScreen({ navigation }) {
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        
+
         <TextInput
           style={styles.input}
           placeholder="Password"
