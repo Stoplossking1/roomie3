@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { db } from './firebase'; // Import Firestore
+import { db } from '../components/firebase'; // Import Firestore
 import { collection, doc, query, onSnapshot, addDoc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
 
 export default function RoomDashboard({ navigation, route }) {
