@@ -30,7 +30,7 @@ export default function AppNavigator() {
 
         {/* Main App (Bottom Tab Navigator) */}
         <Stack.Screen name="Main">
-          {() => (
+          {({ route }) => (
             <Tab.Navigator
               screenOptions={({ route }) => ({
                 tabBarIcon: ({ focused, color, size }) => {
@@ -73,6 +73,7 @@ export default function AppNavigator() {
               <Tab.Screen
                 name="Profile"
                 component={ProfileScreen}
+                initialParams={{ userId: route.params?.userId }} // Pass userId to ProfileScreen
                 options={{ headerShown: false }}
               />
             </Tab.Navigator>

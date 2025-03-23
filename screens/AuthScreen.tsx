@@ -33,26 +33,22 @@ export default function AuthScreen({ navigation }) {
 
   const handleAuth = async () => {
     try {
-      if (!navigation) {
-        console.error('Navigation object is undefined');
-        return;
-      }
-
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
         console.log('User logged in successfully');
-        navigation.replace('Main'); // Navigate to the main app
+        navigation.replace('Main', { userId: user.uid }); // Pass userId to Main
       } else {
         if (!name || !email || !password || !confirmPassword) {
           Alert.alert('Error', 'Please fill in all fields.');
           return;
         }
-
+  
         if (password !== confirmPassword) {
           Alert.alert('Error', 'Passwords do not match.');
           return;
         }
-
+  
         if (!isPasswordStrong(password)) {
           Alert.alert(
             'Weak Password',
@@ -60,17 +56,19 @@ export default function AuthScreen({ navigation }) {
           );
           return;
         }
-
+  
         const isUnique = await isEmailUnique(email);
         if (!isUnique) {
           Alert.alert('Error', 'This email is already registered.');
           return;
         }
-
+  
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-
+  
+        // Store user data in Firestore, including the userId
         await setDoc(doc(db, "users", user.uid), {
+          userId: user.uid, // Store the userId from Firebase Authentication
           name: name,
           email: email,
           gender: gender,
@@ -78,9 +76,9 @@ export default function AuthScreen({ navigation }) {
             ? 'https://api.a0.dev/assets/image?text=male%20profile%20picture&aspect=1:1'
             : 'https://api.a0.dev/assets/image?text=female%20profile%20picture&aspect=1:1',
         });
-
+  
         console.log('User registered successfully');
-        navigation.replace('Main'); // Navigate to the main app
+        navigation.replace('Main', { userId: user.uid }); // Pass userId to Main
       }
     } catch (error) {
       console.error('Authentication error:', error.message);

@@ -21,6 +21,13 @@ export default function ApartmentDashboard({ navigation, route }) {
   const [customChore, setCustomChore] = useState('');
   const [customExpenseTitle, setCustomExpenseTitle] = useState('');
   const [customExpenseAmount, setCustomExpenseAmount] = useState('');
+  
+  // New state for assignment modals
+  const [isAssignChoreModalVisible, setIsAssignChoreModalVisible] = useState(false);
+  const [isAssignExpenseModalVisible, setIsAssignExpenseModalVisible] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [selectedExpenseId, setSelectedExpenseId] = useState(null);
+  const [selectedMember, setSelectedMember] = useState(null);
 
   // Example chores and expenses
   const exampleChores = ["Clean Kitchen", "Take out Trash", "Vacuum Living Room", "Wash Dishes", "Mop Floors"];
@@ -101,12 +108,15 @@ export default function ApartmentDashboard({ navigation, route }) {
   const handleAddExpenses = async () => {
     try {
       selectedExpenses.forEach(async (title) => {
-        await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
-          title,
-          amount: 0,
-          paidBy: "",
-          date: new Date().toISOString().split('T')[0],
-        });
+        const amount = prompt(`Enter amount for "${title}":`);
+        if (amount) {
+          await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
+            title,
+            amount: parseFloat(amount),
+            paidBy: "",
+            date: new Date().toISOString().split('T')[0],
+          });
+        }
       });
       if (customExpenseTitle.trim() && customExpenseAmount) {
         await addDoc(collection(db, "apartments", apartmentId, "expenses"), {
@@ -127,34 +137,36 @@ export default function ApartmentDashboard({ navigation, route }) {
   };
 
   // Assign chore to a member
-  const handleAssignChore = async (taskId) => {
-    const selectedMember = prompt("Enter member ID to assign:");
-    if (!selectedMember || !apartmentData?.members.some(m => m.id === selectedMember)) {
-      alert("Invalid member ID");
+  const handleAssignChore = async () => {
+    if (!selectedMember) {
+      alert("Please select a member.");
       return;
     }
     try {
-      await updateDoc(doc(db, "apartments", apartmentId, "tasks", taskId), {
+      await updateDoc(doc(db, "apartments", apartmentId, "tasks", selectedTaskId), {
         assignedTo: selectedMember,
       });
       alert("Chore assigned successfully!");
+      setIsAssignChoreModalVisible(false);
+      setSelectedMember(null);
     } catch (error) {
       alert("Error assigning chore: " + error.message);
     }
   };
 
   // Assign expense to a member
-  const handleAssignExpense = async (expenseId) => {
-    const selectedMember = prompt("Enter member ID to assign:");
-    if (!selectedMember || !apartmentData?.members.some(m => m.id === selectedMember)) {
-      alert("Invalid member ID");
+  const handleAssignExpense = async () => {
+    if (!selectedMember) {
+      alert("Please select a member.");
       return;
     }
     try {
-      await updateDoc(doc(db, "apartments", apartmentId, "expenses", expenseId), {
+      await updateDoc(doc(db, "apartments", apartmentId, "expenses", selectedExpenseId), {
         paidBy: selectedMember,
       });
       alert("Expense assigned successfully!");
+      setIsAssignExpenseModalVisible(false);
+      setSelectedMember(null);
     } catch (error) {
       alert("Error assigning expense: " + error.message);
     }
@@ -172,10 +184,13 @@ export default function ApartmentDashboard({ navigation, route }) {
         </TouchableOpacity>
       </View>
       <View style={styles.taskDetails}>
-        <Text style={styles.assignedTo}>Assigned to: {item.assignedTo || "Unassigned"}</Text>
+        <Text style={styles.assignedTo}>Assigned to: {item.assignedToName || "Unassigned"}</Text>
         <TouchableOpacity 
           style={styles.assignButton} 
-          onPress={() => handleAssignChore(item.id)}
+          onPress={() => {
+            setSelectedTaskId(item.id);
+            setIsAssignChoreModalVisible(true);
+          }}
         >
           <Text style={styles.assignButtonText}>Assign Chore</Text>
         </TouchableOpacity>
@@ -190,7 +205,10 @@ export default function ApartmentDashboard({ navigation, route }) {
       <Text style={styles.expenseAmount}>${item.amount.toFixed(2)}</Text>
       <TouchableOpacity 
         style={styles.assignButton} 
-        onPress={() => handleAssignExpense(item.id)}
+        onPress={() => {
+          setSelectedExpenseId(item.id);
+          setIsAssignExpenseModalVisible(true);
+        }}
       >
         <Text style={styles.assignButtonText}>Assign Expense</Text>
       </TouchableOpacity>
@@ -310,21 +328,31 @@ export default function ApartmentDashboard({ navigation, route }) {
             <FlatList
               data={exampleExpenses}
               renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.exampleItem}
-                  onPress={() => setSelectedExpenses(prev => 
-                    prev.includes(item) 
-                      ? prev.filter(e => e !== item) 
-                      : [...prev, item]
-                  )}
-                >
+                <View style={styles.exampleExpenseContainer}>
                   <Text>{item}</Text>
+                  <TextInput
+                    placeholder="Amount"
+                    keyboardType="numeric"
+                    onChangeText={(amount) => {
+                      setSelectedExpenses((prev) => 
+                        prev.map((exp) => exp.title === item ? { ...exp, amount } : exp)
+                      );
+                    }}
+                    style={styles.amountInput}
+                  />
                   <MaterialCommunityIcons 
-                    name={selectedExpenses.includes(item) ? "checkbox-marked" : "checkbox-blank-outline"}
+                    name={selectedExpenses.some(exp => exp.title === item) ? "checkbox-marked" : "checkbox-blank-outline"}
                     size={24} 
                     color="#007AFF"
+                    onPress={() => {
+                      setSelectedExpenses((prev) => 
+                        prev.some(exp => exp.title === item)
+                          ? prev.filter(exp => exp.title !== item)
+                          : [...prev, { title: item, amount: 0 }]
+                      );
+                    }}
                   />
-                </TouchableOpacity>
+                </View>
               )}
               keyExtractor={(item) => item}
             />
@@ -345,6 +373,84 @@ export default function ApartmentDashboard({ navigation, route }) {
               <Text style={styles.modalButtonText}>Add Expenses</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modalCancelButton} onPress={() => setIsExpenseModalVisible(false)}>
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Assign Chore Modal */}
+      <Modal visible={isAssignChoreModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Assign Chore to Member</Text>
+            <FlatList
+              data={apartmentData.members}
+              renderItem={({ item: member }) => (
+                <TouchableOpacity 
+                  style={styles.memberItem}
+                  onPress={() => setSelectedMember(member.id)}
+                >
+                  <Text>{member.name}</Text>
+                  <MaterialCommunityIcons 
+                    name={selectedMember === member.id ? "radiobox-marked" : "radiobox-blank"}
+                    size={24} 
+                    color="#007AFF"
+                  />
+                </TouchableOpacity>
+              )}
+              keyExtractor={(member) => member.id}
+            />
+            <TouchableOpacity 
+              style={styles.modalButton} 
+              onPress={handleAssignChore}
+              disabled={!selectedMember}
+            >
+              <Text style={styles.modalButtonText}>Confirm Assignment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.modalCancelButton} 
+              onPress={() => setIsAssignChoreModalVisible(false)}
+            >
+              <Text style={styles.modalButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Assign Expense Modal */}
+      <Modal visible={isAssignExpenseModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Assign Expense to Member</Text>
+            <FlatList
+              data={apartmentData.members}
+              renderItem={({ item: member }) => (
+                <TouchableOpacity 
+                  style={styles.memberItem}
+                  onPress={() => setSelectedMember(member.id)}
+                >
+                  <Text>{member.name}</Text>
+                  <MaterialCommunityIcons 
+                    name={selectedMember === member.id ? "radiobox-marked" : "radiobox-blank"}
+                    size={24} 
+                    color="#007AFF"
+                  />
+                </TouchableOpacity>
+              )}
+              keyExtractor={(member) => member.id}
+            />
+            <TouchableOpacity 
+              style={styles.modalButton} 
+              onPress={handleAssignExpense}
+              disabled={!selectedMember}
+            >
+              <Text style={styles.modalButtonText}>Confirm Assignment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.modalCancelButton} 
+              onPress={() => setIsAssignExpenseModalVisible(false)}
+            >
               <Text style={styles.modalButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -462,6 +568,22 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: 10,
   },
+  exampleExpenseContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    padding: 10,
+  },
+  amountInput: {
+    width: 100,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    marginHorizontal: 10,
+  },
   input: { 
     width: '100%',
     height: 40,
@@ -470,6 +592,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: 10,
     marginVertical: 10,
+  },
+  memberItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    padding: 10,
   },
   modalButton: { 
     backgroundColor: '#007AFF',
