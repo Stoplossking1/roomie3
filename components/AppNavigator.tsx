@@ -3,9 +3,9 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import RoomsScreen from '../screens/RoomsScreen';
+import ApartmentScreen from '../screens/ApartmentsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import RoomDashboard from '../screens/RoomDashboard'; // Import RoomDashboard
+import ApartmentDashboard from '../screens/ApartmentDashboard'; // Import RoomDashboard
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -15,8 +15,8 @@ const Stack = createStackNavigator();
 function ApartmentStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Rooms" component={RoomsScreen} />
-      <Stack.Screen name="RoomDashboard" component={RoomDashboard} />
+      <Stack.Screen name="ApartmentScreen" component={ApartmentScreen} />
+      <Stack.Screen name="ApartmentDashboard" component={ApartmentDashboard} />
     </Stack.Navigator>
   );
 }
