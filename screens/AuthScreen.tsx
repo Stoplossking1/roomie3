@@ -1,24 +1,28 @@
+// AuthScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from './firebase'; // Adjust the path if needed
+import { auth } from '../components/firebase'; // Adjust the path if needed
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth"; // Import Firebase auth functions
 
 export default function AuthScreen({ navigation }) {
-  const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [isLogin, setIsLogin] = useState(true); // Toggle between login and register modes
+  const [email, setEmail] = useState(''); // Email input state
+  const [password, setPassword] = useState(''); // Password input state
 
+  // Handle authentication (login or register)
   const handleAuth = async () => {
     try {
       if (isLogin) {
         // Login with email and password
         await signInWithEmailAndPassword(auth, email, password);
-        navigation.navigate('Rooms');
+        console.log('User logged in successfully');
+        navigation.replace('Main'); // Navigate to the main app (replace current screen)
       } else {
         // Register with email and password
         await createUserWithEmailAndPassword(auth, email, password);
-        navigation.navigate('Rooms');
+        console.log('User registered successfully');
+        navigation.replace('Main'); // Navigate to the main app (replace current screen)
       }
     } catch (error) {
       // Handle errors (e.g., invalid email, weak password, etc.)
@@ -29,15 +33,19 @@ export default function AuthScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        {/* App Logo */}
         <Image
           source={{ uri: 'https://api.a0.dev/assets/image?text=roommate%20management%20app%20modern%20logo&aspect=1:1' }}
           style={styles.logo}
         />
+
+        {/* Title and Subtitle */}
         <Text style={styles.title}>RoomMate Manager</Text>
         <Text style={styles.subtitle}>
           {isLogin ? 'Welcome back!' : 'Create your account'}
         </Text>
 
+        {/* Email Input */}
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -47,6 +55,7 @@ export default function AuthScreen({ navigation }) {
           autoCapitalize="none"
         />
 
+        {/* Password Input */}
         <TextInput
           style={styles.input}
           placeholder="Password"
@@ -55,12 +64,14 @@ export default function AuthScreen({ navigation }) {
           secureTextEntry
         />
 
+        {/* Login/Register Button */}
         <TouchableOpacity style={styles.button} onPress={handleAuth}>
           <Text style={styles.buttonText}>
             {isLogin ? 'Login' : 'Register'}
           </Text>
         </TouchableOpacity>
 
+        {/* Switch Between Login and Register */}
         <TouchableOpacity 
           style={styles.switchButton}
           onPress={() => setIsLogin(!isLogin)}

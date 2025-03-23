@@ -1,40 +1,31 @@
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StyleSheet } from 'react-native';
-import { SafeAreaProvider } from "react-native-safe-area-context"
+// App.tsx
+import React, { useEffect, useState } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Toaster } from 'sonner-native';
-import AuthScreen from "./screens/AuthScreen"
-import RoomsScreen from "./screens/RoomsScreen"
-import RoomDashboard from "./screens/RoomDashboard"
-import ProfileScreen from "./screens/ProfileScreen"
-
-const Stack = createNativeStackNavigator();
-
-function RootStack() {
-  return (    <Stack.Navigator screenOptions={{
-      headerShown: false
-    }}>
-      <Stack.Screen name="Auth" component={AuthScreen} />
-      <Stack.Screen name="Rooms" component={RoomsScreen} />
-      <Stack.Screen name="RoomDashboard" component={RoomDashboard} />
-      <Stack.Screen name="Profile" component={ProfileScreen} />
-    </Stack.Navigator>
-  );
-}
+import { auth } from './components/firebase'; // Adjust the path if needed
+import AppNavigator from './components/AppNavigator';
+import AuthScreen from './screens/AuthScreen';
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    // Listen for authentication state changes
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setIsAuthenticated(true); // User is signed in
+      } else {
+        setIsAuthenticated(false); // User is signed out
+      }
+    });
+
+    return () => unsubscribe(); // Cleanup subscription
+  }, []);
+
   return (
-    <SafeAreaProvider style={styles.container}>
+    <SafeAreaProvider>
       <Toaster />
-      <NavigationContainer>
-        <RootStack />
-      </NavigationContainer>
+      {isAuthenticated ? <AppNavigator /> : <AuthScreen />}
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1
-  }
-});

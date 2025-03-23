@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { db } from './firebase'; // Import Firestore
+import { db } from '../components/firebase'; // Import Firestore
 import { collection, query, onSnapshot, addDoc } from "firebase/firestore"; // Firestore methods
-import Footer from './Footer'; // Import the reusable Footer component
+import CustomPrompt from '../components/CustomPrompt'; // Import the custom modal
 
 export default function RoomsScreen({ navigation }) {
   const [rooms, setRooms] = useState([]); // State to hold rooms
   const [loading, setLoading] = useState(true); // Loading state for Firestore fetch
+  const [isModalVisible, setIsModalVisible] = useState(false); // Modal visibility state
 
   // Fetch rooms from Firestore
   useEffect(() => {
@@ -25,26 +26,16 @@ export default function RoomsScreen({ navigation }) {
     return () => unsubscribe(); // Unsubscribe from listener on unmount
   }, []);
 
-  // Function to create a new room
-  const handleCreateRoom = async () => {
+  // Function to handle room creation
+  const handleCreateRoom = async (roomName: string) => {
     try {
-      const roomName = prompt("Enter room name:");
-      if (roomName) {
-        await addDoc(collection(db, "rooms"), {
-          name: roomName,
-          members: 1, // Default number of members
-        });
-        alert("Room created successfully!");
-      }
+      await addDoc(collection(db, "rooms"), {
+        name: roomName,
+        members: 1, // Default number of members
+      });
+      console.log(`Room "${roomName}" created successfully`);
     } catch (error) {
-      alert("Error creating room: " + error.message);
-    }
-  };
-
-  // Handle footer tab press
-  const handleFooterPress = (tab: string) => {
-    if (tab === 'profile') {
-      navigation.navigate('Profile'); // Matches the navigator name "Profile"
+      console.error("Error creating room:", error);
     }
   };
 
@@ -78,7 +69,7 @@ export default function RoomsScreen({ navigation }) {
         <Text style={styles.title}>Your Rooms</Text>
         <TouchableOpacity 
           style={styles.createButton}
-          onPress={handleCreateRoom}
+          onPress={() => setIsModalVisible(true)} // Open the modal
         >
           <MaterialCommunityIcons name="plus" size={24} color="white" />
           <Text style={styles.createButtonText}>Create Room</Text>
@@ -93,8 +84,14 @@ export default function RoomsScreen({ navigation }) {
         contentContainerStyle={styles.listContainer}
       />
 
-      {/* Footer */}
-      <Footer activeTab="apartment" onTabPress={handleFooterPress} />
+      {/* Custom Prompt Modal */}
+      <CustomPrompt
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)} // Close the modal
+        onSubmit={handleCreateRoom} // Handle room creation
+        title="Create New Room"
+        placeholder="Enter room name"
+      />
     </SafeAreaView>
   );
 }
